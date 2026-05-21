@@ -1,0 +1,22 @@
+from pydantic import BaseModel, HttpUrl
+from typing import Optional
+from datetime import datetime
+
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class URLCreate(BaseModel):
+    original_url : HttpUrl
+
+class URLResponse(BaseModel):
+    id : int
+    original_url : str 
+    short_code : str 
+    click_count : int 
+    created_at : datetime
