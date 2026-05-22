@@ -1,4 +1,5 @@
 import secrets
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from .. import models
@@ -15,7 +16,9 @@ router = APIRouter()
 @router.post('/urls/')
 def url_shortener( url: URLCreate , db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
 
-    create_shortcode = models.URL( original_url = str(url.original_url), owner_id = current_user)
+    create_shortcode = models.URL( original_url = str(url.original_url),
+                                   owner_id = current_user,
+                                   expires_at = datetime.utcnow() + timedelta(hours = 24))
 
     while True:
         convert_url = create_shortcode
@@ -36,22 +39,37 @@ def url_shortener( url: URLCreate , db: Session = Depends(get_db), current_user:
 def redirect_to_original_url (short_code: str, db: Session = Depends(get_db)):
 
     cached_url = redis_client.get(short_code)
+
     if cached_url:
-        return RedirectResponse(url=cached_url, status_code = 302)
-    else:
-        #checking if short_code already exist in db
+
         url_entry = db.query(models.URL).filter(models.URL.short_code == short_code).first()
 
         if not url_entry:
-            raise HTTPException(status_code = 404, detail = ' Short url not found')
+            raise HTTPException(status_code=404, detail='Short url not found')
 
-        redis_client.set(short_code, url_entry.original_url, ex = 3600) # 1 hour cache
+        if datetime.utcnow() > url_entry.expires_at:
+            raise HTTPException(status_code=404, detail='Link expired')
+
         url_entry.click_count += 1
-
         db.commit()
 
-        # redirect user
-        return RedirectResponse(url=url_entry.original_url, status_code = 302)
+        return RedirectResponse(url=cached_url, status_code=302)
+
+    else:
+        url_entry = db.query(models.URL).filter(models.URL.short_code == short_code).first()
+
+        if not url_entry:
+            raise HTTPException(status_code=404, detail='Short url not found')
+
+        if datetime.utcnow() > url_entry.expires_at:
+            raise HTTPException(status_code=404, detail='Link expired')
+
+        redis_client.set(short_code, url_entry.original_url, ex=3600)  # 1 hour cache
+
+        url_entry.click_count += 1
+        db.commit()
+
+        return RedirectResponse(url=url_entry.original_url, status_code=302)
 
 #GET /urls — get all URLs for logged in user
 @router.get('/urls/')
