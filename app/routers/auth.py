@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from .. import models
 from ..database import get_db
@@ -10,6 +10,7 @@ from ..schemas import UserCreate, UserLogin
 from fastapi.security import OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 import os
+from ..ratelimiter import check_ip_rate_limit
 
 router = APIRouter()
 
@@ -21,11 +22,6 @@ load_dotenv()
 SECRET_KEY = os.getenv('SECRET_KEY')
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Now write two functions below that skeleton — don't write endpoints yet, just utility functions:
-# 1. hash_password(password: str) — takes a plain password, returns hashed version
-# 2. verify_password(plain_password, hashed_password) — returns True or False
-# Hint — pwd_context has two methods: .hash() and .verify(). Figure out how to use them.
 
 
 def hash_password(password : str):
@@ -48,17 +44,12 @@ def create_access_token(data : dict):
     return encoded_jwt
 
 
-# POST /register
-# Takes: username, email, password
-# Does:
-# - Check if email already exists in DB, if yes return error
-# - Hash the password
-# - Create new User object and save to DB
-# - Return success message
 
 @router.post('/register/')
-def register(user: UserCreate, db : Session = Depends(get_db)):
+def register(request: Request, user: UserCreate, db : Session = Depends(get_db)):
     
+    check_ip_rate_limit(request)
+
     # check if email exist
     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
     if existing_user :
@@ -76,13 +67,12 @@ def register(user: UserCreate, db : Session = Depends(get_db)):
     return {"message": "User created successfully"}
 
 
-# Same signature pattern as register
-# Find user by email
-# Verify password using verify_password()
-# If wrong, raise HTTPException
-# If correct, call create_access_token() and return the token
 @router.post('/login/')
-def login(user_credentials: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(request: Request, user_credentials: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+
+    check_ip_rate_limit(request)
+
+    # find user in db
     find_user = db.query(models.User).filter(models.User.email == user_credentials.username).first()
     if find_user is None:
         raise HTTPException(status_code=404, detail='User not found')
