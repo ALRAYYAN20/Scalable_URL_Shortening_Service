@@ -22,7 +22,7 @@ class User(Base):
     # creates column just like above , this syntax is shortcut, CANNOT BE NULL
     email : Mapped[str] = mapped_column(String (100), unique = True, nullable = False)
     # same, cannot be null
-    password : Mapped[str] = mapped_column(String (255))
+    password : Mapped[str] = mapped_column(String (255), nullable = False)
     # stores password 
     create_date : Mapped[datetime] = mapped_column(insert_default = func.now())
     # notes time when data was created
@@ -39,6 +39,6 @@ class URL(Base):
     short_code : Mapped[str] = mapped_column ( String(10), unique = True, nullable = False )
     click_count : Mapped[int] = mapped_column ( default = 0 )
     created_at: Mapped[datetime] = mapped_column ( insert_default = func.now() )
-    expires_at: Mapped[datetime] = mapped_column( nullable = False)
+    expires_at: Mapped[datetime] = mapped_column( nullable = True)
     owner = relationship( 'User', back_populates='urls' )
 

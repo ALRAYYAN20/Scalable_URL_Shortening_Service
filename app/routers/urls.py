@@ -18,24 +18,36 @@ router = APIRouter()
 def url_shortener( url: URLCreate , db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
 
     check_user_rate_limit(current_user)
+    
+    if url.custom_alias:
+            alias_exists = db.query(models.URL).filter(models.URL.short_code == url.custom_alias).first()
+
+            if alias_exists:
+                raise HTTPException (status_code = 400, detail = " Custom alias already exists")
+            
+            short_code = url.custom_alias
+
+    else:
+        while True:
+            short_code = secrets.token_urlsafe(6)
+
+            url_unique = db.query(models.URL).filter(
+                models.URL.short_code == short_code
+            ).first()
+
+            if url_unique is None:
+                break
 
     create_shortcode = models.URL( original_url = str(url.original_url),
+                                   short_code = short_code,
                                    owner_id = current_user,
                                    expires_at = datetime.utcnow() + timedelta(hours = 24))
-
-    while True:
-        convert_url = create_shortcode
-        short_code = secrets.token_urlsafe(6)
-        url_unique = db.query(models.URL).filter(models.URL.short_code == short_code).first()
-        create_shortcode.short_code = short_code
-        if url_unique == None:
-            break 
-    
+        
     db.add(create_shortcode)
     db.commit()
     db.refresh(create_shortcode)
 
-    return(convert_url)
+    return(create_shortcode)
 
 
 
@@ -95,7 +107,7 @@ def all_urls(db: Session = Depends(get_db), current_user: int = Depends(get_curr
 def by_id(id : int, db: Session = Depends(get_db), current_user: int = Depends(get_current_user)):
 
     check_user_rate_limit(current_user)
-    
+
     delete_url = db.query(models.URL).filter(models.URL.id == id).first()
 
     if not delete_url:

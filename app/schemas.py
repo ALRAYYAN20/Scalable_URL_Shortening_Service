@@ -13,6 +13,7 @@ class UserLogin(BaseModel):
 
 class URLCreate(BaseModel):
     original_url : HttpUrl
+    custom_alias: Optional[str] = None
 
 class URLResponse(BaseModel):
     id : int
